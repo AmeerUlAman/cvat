@@ -5,6 +5,7 @@
 from django.db.models import Count
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -13,6 +14,8 @@ from cvat.apps.engine.models import LabeledShape, Task
 
 class TaskAnnotationCountsView(APIView):
     """Return the number of saved labeled shapes per label for a task."""
+
+    permission_classes = [IsAuthenticated]
 
     @extend_schema(
         operation_id="get_task_annotation_counts",
