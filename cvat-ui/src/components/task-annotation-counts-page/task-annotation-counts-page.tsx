@@ -15,6 +15,7 @@ import Alert from 'antd/lib/alert';
 import Button from 'antd/lib/button';
 import Empty from 'antd/lib/empty';
 import { Col, Row } from 'antd/lib/grid';
+import Select from 'antd/lib/select';
 import Title from 'antd/lib/typography/Title';
 import Text from 'antd/lib/typography/Text';
 
@@ -31,8 +32,20 @@ interface LabelCount {
 
 interface CountsResponse {
     task_id: number;
+    source: AnnotationSource;
     counts: LabelCount[];
 }
+
+type AnnotationSource = '' | 'manual' | 'auto' | 'semi-auto' | 'file' | 'consensus';
+
+const SOURCE_OPTIONS: { value: AnnotationSource; label: string }[] = [
+    { value: '', label: 'All sources' },
+    { value: 'manual', label: 'Manual' },
+    { value: 'auto', label: 'Automatic' },
+    { value: 'semi-auto', label: 'Semi-automatic' },
+    { value: 'file', label: 'Imported from file' },
+    { value: 'consensus', label: 'Consensus' },
+];
 
 function TaskAnnotationCountsPage(): JSX.Element {
     const taskId = Number(useParams<{ id: string }>().id);
@@ -40,6 +53,7 @@ function TaskAnnotationCountsPage(): JSX.Element {
     const [fetching, setFetching] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [retryCount, setRetryCount] = useState(0);
+    const [source, setSource] = useState<AnnotationSource>('');
 
     const chartData = useMemo<ChartData<'bar'>>(() => ({
         labels: counts.map(({ label }) => label),
@@ -102,7 +116,8 @@ function TaskAnnotationCountsPage(): JSX.Element {
         setFetching(true);
         setError(null);
 
-        fetch(`/api/tasks/${taskId}/annotation-counts`, {
+        const sourceQuery = source ? `?source=${encodeURIComponent(source)}` : '';
+        fetch(`/api/tasks/${taskId}/annotation-counts${sourceQuery}`, {
             method: 'GET',
             credentials: 'same-origin',
             headers: { Accept: 'application/vnd.cvat+json' },
@@ -128,7 +143,7 @@ function TaskAnnotationCountsPage(): JSX.Element {
         });
 
         return () => controller.abort();
-    }, [taskId, retryCount]);
+    }, [taskId, retryCount, source]);
 
     return (
         <div className='cvat-annotation-counts-page'>
@@ -141,8 +156,19 @@ function TaskAnnotationCountsPage(): JSX.Element {
                 <Row justify='center' className='cvat-annotation-counts-inner-wrapper'>
                     <Col span={22} xl={18} xxl={14} className='cvat-annotation-counts-inner'>
                         <header className='cvat-annotation-counts-header'>
-                            <Title level={2}>Annotation counts</Title>
-                            <Text type='secondary'>Task {taskId} · saved shapes grouped by label</Text>
+                            <div>
+                                <Title level={2}>Annotation counts</Title>
+                                <Text type='secondary'>Task {taskId} · saved shapes grouped by label</Text>
+                            </div>
+                            <label className='cvat-annotation-counts-source-filter'>
+                                <Text>Annotation source</Text>
+                                <Select<AnnotationSource>
+                                    value={source}
+                                    onChange={setSource}
+                                    options={SOURCE_OPTIONS}
+                                    aria-label='Filter annotation counts by source'
+                                />
+                            </label>
                         </header>
                         <section aria-live='polite' className='cvat-annotation-counts-content'>
                             { fetching && <CVATLoadingSpinner /> }
@@ -160,7 +186,11 @@ function TaskAnnotationCountsPage(): JSX.Element {
                                 />
                             ) }
                             { !fetching && !error && counts.length === 0 && (
-                                <Empty description='No saved shapes were found for this task.' />
+                                <Empty
+                                    description={source ?
+                                        'No saved shapes match this source.' :
+                                        'No saved shapes were found for this task.'}
+                                />
                             ) }
                             { !fetching && !error && counts.length > 0 && (
                                 <div

@@ -25,6 +25,8 @@ The first milestone is a database-backed per-class annotation count for one task
 
 The assessment explicitly prioritizes requirements 1-4. Work on the UI only after the endpoint is working. WebSocket updates and reconnect handling are deferred until the earlier requirements are complete. COCO import and a Loom recording depend on the local Docker stack and sample data being available; if unavailable within the time box, record the limitation and evidence rather than claim completion. No PR will target the upstream CVAT repository.
 
+The additional requirement-7 feature is a filter by annotation source (`manual`, `auto`, `semi-auto`, `file`, or `consensus`). Source was chosen because it is recorded on every saved shape and lets a reviewer distinguish human work from imported or automated annotations without changing the useful per-class grouping.
+
 ## Completion rule
 
 Stop at the eight-hour limit. Commit in small steps with messages that state what changed and why. Report each unfinished requirement and the reason in the final checklist. Do not report performance numbers without five raw measurements, the median and spread, machine details, and the base CVAT SHA.
