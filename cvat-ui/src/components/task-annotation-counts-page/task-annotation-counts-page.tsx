@@ -156,9 +156,14 @@ function TaskAnnotationCountsPage(): JSX.Element {
 
         let isActive = true;
         let retryTimeoutId: number | undefined;
+        let reconnectDelay = 1000;
 
-        const createWebSocket =(): void => {
+        const createWebSocket = (): void => {
             if (!isActive) {
+                return;
+            }
+
+            if (websocketRef.current && websocketRef.current.readyState === WebSocket.OPEN) {
                 return;
             }
 
@@ -168,12 +173,21 @@ function TaskAnnotationCountsPage(): JSX.Element {
             websocketRef.current = socket;
 
             socket.onopen = () => {
-                // WebSocket is connected; keep the chart in sync with server-driven refreshes.
+                reconnectDelay = 1000;
+                setError(null);
             };
 
             socket.onmessage = (event) => {
+                const rawMessage = typeof event.data === 'string' ? event.data : '';
+                if (!rawMessage) {
+                    return;
+                }
+
                 try {
-                    const payload = JSON.parse(event.data) as { type?: string; task_id?: number };
+                    const payload = JSON.parse(rawMessage) as { type?: string; task_id?: number };
+                    if (payload.type === 'ping') {
+                        return;
+                    }
                     if (payload.type === 'annotation_counts_updated' && payload.task_id === taskId) {
                         const controller = new AbortController();
                         void fetchCounts(controller.signal);
@@ -185,7 +199,7 @@ function TaskAnnotationCountsPage(): JSX.Element {
             };
 
             socket.onerror = () => {
-                // A transient websocket failure should not leave the user with stale data; reconnect with backoff.
+                // Reconnect with backoff after a transient socket failure.
             };
 
             socket.onclose = () => {
@@ -194,8 +208,9 @@ function TaskAnnotationCountsPage(): JSX.Element {
                 }
 
                 retryTimeoutId = window.setTimeout(() => {
+                    reconnectDelay = Math.min(reconnectDelay * 2, 15000);
                     createWebSocket();
-                }, 1500);
+                }, reconnectDelay);
             };
         };
 

@@ -24,6 +24,8 @@ from cvat.apps.iam.middleware import get_organization
 
 _TASK_COUNTS_PATH = re.compile(r"^/ws/tasks/(?P<task_id>\d+)/annotation-counts/?$")
 _CHECK_INTERVAL_SECONDS = 1.5
+_PING_INTERVAL_SECONDS = 20
+_PING_MESSAGE = json.dumps({"type": "ping"})
 
 
 def _session_key_from_scope(scope: dict[str, Any]) -> str | None:
@@ -89,12 +91,17 @@ async def annotation_counts_ws(scope, receive, send):
 
     await send({"type": "websocket.accept"})
     signature = await sync_to_async(_counts_signature, thread_sensitive=True)(task_id)
+    last_ping_at = asyncio.get_running_loop().time()
 
     while True:
         try:
             message = await asyncio.wait_for(receive(), timeout=_CHECK_INTERVAL_SECONDS)
         except TimeoutError:
+            current_time = asyncio.get_running_loop().time()
             current_signature = await sync_to_async(_counts_signature, thread_sensitive=True)(task_id)
+            if current_time - last_ping_at >= _PING_INTERVAL_SECONDS:
+                await send({"type": "websocket.send", "text": _PING_MESSAGE})
+                last_ping_at = current_time
             if current_signature != signature:
                 signature = current_signature
                 await send(
@@ -109,3 +116,6 @@ async def annotation_counts_ws(scope, receive, send):
 
         if message["type"] == "websocket.disconnect":
             return
+
+        if message.get("type") == "websocket.receive":
+            continue
