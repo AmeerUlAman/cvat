@@ -7,7 +7,7 @@ Mark each item only when complete and add a concrete result, command output, or 
 - [x] UI calls the endpoint and renders a graph. Evidence: `/tasks/14/annotation-counts` rendered the per-label horizontal bar chart ([chart screenshot](evidence/task-14-annotation-counts-chart.png)) implemented in `cvat-ui/src/components/task-annotation-counts-page/`.
 - [x] UI handles no annotations and a failed request. Evidence: the page renders an explicit empty state for zero counts and a retryable error alert for failed requests.
 - [x] Unauthenticated and unauthorized task access are refused; authorized access works. Evidence: a focused API-client check returned HTTP 401 for an anonymous request, HTTP 403 for an unrelated authenticated user, and HTTP 200 with 80 label groups for task 14's owner. The endpoint delegates the decision to CVAT's existing `TaskPermission` view policy.
-- [ ] MO-1 is measured five times with raw output, median, spread, machine details, and base commit. Evidence: pending.
+- [x] MO-1 is measured five times with raw output, median, spread, machine details, and base commit. Evidence: `Objectives.md` records all five runs (120.987-149.311 ms), a 131.887 ms median, a 28.324 ms spread, the excluded warm-up, machine details, task size, and base SHA; the median meets the 200 ms target.
 - [ ] One additional filter or grouping is implemented and its rationale recorded. Evidence: pending.
 - [ ] Live graph updates and reconnect behavior are implemented, if time permits after requirements 1-4. Evidence: pending.
 - [ ] Loom recording is five minutes or less and answers K1-K4 against the submitted code. Evidence: pending.
