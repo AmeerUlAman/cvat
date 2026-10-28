@@ -20,7 +20,18 @@ import cvat.utils.remote_debugger as debug
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "cvat.settings.development")
 
-application = get_asgi_application()
+_django_application = get_asgi_application()
+
+# Import after Django has populated its app registry: the handler imports engine models.
+from cvat.apps.test.websocket import annotation_counts_ws
+
+
+async def application(scope, receive, send):
+    if scope["type"] == "websocket":
+        await annotation_counts_ws(scope, receive, send)
+        return
+
+    await _django_application(scope, receive, send)
 
 
 if debug.is_debugging_enabled():
@@ -37,5 +48,11 @@ if debug.is_debugging_enabled():
         async def handle(self, *args, **kwargs):
             self.__debugger.attach_current_thread()
             return await super().handle(*args, **kwargs)
+
+        async def __call__(self, scope, receive, send):
+            if scope["type"] == "websocket":
+                await annotation_counts_ws(scope, receive, send)
+                return
+            await super().__call__(scope, receive, send)
 
     application = DebuggerApp()

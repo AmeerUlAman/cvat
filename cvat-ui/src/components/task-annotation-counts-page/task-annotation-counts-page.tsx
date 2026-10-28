@@ -4,7 +4,7 @@
 
 import './styles.scss';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router';
 import {
     BarElement, CategoryScale, Chart as ChartJS, ChartData, ChartOptions, LinearScale, Tooltip,
@@ -111,17 +111,16 @@ function TaskAnnotationCountsPage(): JSX.Element {
         },
     }), []);
 
-    useEffect(() => {
-        const controller = new AbortController();
+    const fetchCounts = useCallback((signal?: AbortSignal): Promise<void> => {
         setFetching(true);
         setError(null);
 
         const sourceQuery = source ? `?source=${encodeURIComponent(source)}` : '';
-        fetch(`/api/tasks/${taskId}/annotation-counts${sourceQuery}`, {
+        return fetch(`/api/tasks/${taskId}/annotation-counts${sourceQuery}`, {
             method: 'GET',
             credentials: 'same-origin',
             headers: { Accept: 'application/vnd.cvat+json' },
-            signal: controller.signal,
+            signal,
         }).then(async (response) => {
             if (!response.ok) {
                 throw new Error(`The request failed (${response.status})`);
@@ -133,17 +132,83 @@ function TaskAnnotationCountsPage(): JSX.Element {
             }
             setCounts(result.counts);
         }).catch((requestError: unknown) => {
-            if (!controller.signal.aborted) {
+            if (!signal?.aborted) {
                 setError(requestError instanceof Error ? requestError.message : 'Could not load annotation counts');
             }
         }).finally(() => {
-            if (!controller.signal.aborted) {
+            if (!signal?.aborted) {
                 setFetching(false);
             }
         });
+    }, [taskId, source]);
 
+    useEffect(() => {
+        const controller = new AbortController();
+        void fetchCounts(controller.signal);
         return () => controller.abort();
-    }, [taskId, retryCount, source]);
+    }, [fetchCounts, retryCount]);
+
+    const websocketRef = useRef<WebSocket | null>(null);
+    useEffect(() => {
+        if (typeof window === 'undefined' || !('WebSocket' in window)) {
+            return undefined;
+        }
+
+        let isActive = true;
+        let retryTimeoutId: number | undefined;
+
+        const createWebSocket =(): void => {
+            if (!isActive) {
+                return;
+            }
+
+            const socketUrl = new URL(`/ws/tasks/${taskId}/annotation-counts`, window.location.origin);
+            socketUrl.protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const socket = new WebSocket(socketUrl.toString());
+            websocketRef.current = socket;
+
+            socket.onopen = () => {
+                // WebSocket is connected; keep the chart in sync with server-driven refreshes.
+            };
+
+            socket.onmessage = (event) => {
+                try {
+                    const payload = JSON.parse(event.data) as { type?: string; task_id?: number };
+                    if (payload.type === 'annotation_counts_updated' && payload.task_id === taskId) {
+                        const controller = new AbortController();
+                        void fetchCounts(controller.signal);
+                        setTimeout(() => controller.abort(), 5000);
+                    }
+                } catch {
+                    // Ignore malformed push notifications and fall back to the next explicit refresh.
+                }
+            };
+
+            socket.onerror = () => {
+                // A transient websocket failure should not leave the user with stale data; reconnect with backoff.
+            };
+
+            socket.onclose = () => {
+                if (!isActive) {
+                    return;
+                }
+
+                retryTimeoutId = window.setTimeout(() => {
+                    createWebSocket();
+                }, 1500);
+            };
+        };
+
+        createWebSocket();
+
+        return () => {
+            isActive = false;
+            if (retryTimeoutId) {
+                window.clearTimeout(retryTimeoutId);
+            }
+            websocketRef.current?.close();
+        };
+    }, [fetchCounts, taskId]);
 
     return (
         <div className='cvat-annotation-counts-page'>

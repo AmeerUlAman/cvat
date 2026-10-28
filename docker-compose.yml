@@ -110,6 +110,10 @@ services:
         (PathPrefix(`/api/`) || PathPrefix(`/static/`) || PathPrefix(`/admin`)
           || PathPrefix(`/django-rq`))
       traefik.http.routers.cvat.entrypoints: web
+      traefik.http.routers.cvat_ws.rule:
+        Host(`${CVAT_HOST:-localhost}`) && PathPrefix(`/ws/`)
+      traefik.http.routers.cvat_ws.entrypoints: web
+      traefik.http.routers.cvat_ws.service: cvat
     volumes:
       - cvat_data:/home/django/data
       - cvat_keys:/home/django/keys

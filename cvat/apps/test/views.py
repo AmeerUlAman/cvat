@@ -17,6 +17,7 @@ from cvat.apps.engine.permissions import TaskPermission
 class TaskAnnotationCountsView(APIView):
     """Return the number of saved labeled shapes per label for a task."""
 
+    detail = False
     permission_classes = [IsAuthenticated]
 
     @extend_schema(
