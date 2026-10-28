@@ -5,11 +5,13 @@
 from django.db.models import Count
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from cvat.apps.engine.models import LabeledShape, Task
+from cvat.apps.engine.permissions import TaskPermission
 
 
 class TaskAnnotationCountsView(APIView):
@@ -24,6 +26,10 @@ class TaskAnnotationCountsView(APIView):
     )
     def get(self, request, task_id: int):
         task = get_object_or_404(Task, pk=task_id)
+        permission = TaskPermission.create_scope_view(request, task)
+        if not permission.check_access().allow:
+            raise PermissionDenied("You do not have permission to view this task")
+
         counts = (
             LabeledShape.objects.filter(job__segment__task=task)
             .values("label_id", "label__name")
